@@ -1,0 +1,26 @@
+{
+  "environment": "DEVELOPMENT",
+  "logging": {
+    "level": "info"
+  },
+  "certificate": {
+    "crt": "./certs/certificate.crt",
+    "key": "./certs/certificate.key"
+  },
+  "httpPort": 8080,
+  "httpsPort": 8081,
+  "hosts": {
+    "productA": {
+      "host": "product-a.xyz",
+      "port": 9000,
+      "subdomains": {
+        "webshop": 9001
+      }
+    },
+    "blog": {
+      "host": "bloglife.abc",
+      "port": 9100,
+      "subdomains": {}
+    }
+  }
+}
