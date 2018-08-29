@@ -7,8 +7,8 @@
     "crt": "./certs/certificate.crt",
     "key": "./certs/certificate.key"
   },
-  "httpPort": 8080,
-  "httpsPort": 8081,
+  "httpPort": 80,
+  "httpsPort": 443,
   "hosts": {
     "productA": {
       "host": "product-a.xyz",
