@@ -1,25 +1,21 @@
 const fs = require('fs')
 const path = require('path')
-const configProduction = require('./config.prd.json')
-const configDevelopment = require('./config.dev.json')
 
 const getConfig = () => {
   const env = (process.env.NODE_ENV || 'PRODUCTION').toUpperCase()
 
   switch (env) {
+    case 'D':
+    case 'DEV':
+    case 'DEVELOPMENT':
+      return require('./config.dev.json')
+
     case 'P':
     case 'PRD':
     case 'PROD':
     case 'PRODUCTION':
-      return configProduction
-
-    case 'D':
-    case 'DEV':
-    case 'DEVELOPMENT':
-      return configDevelopment
-
     default:
-      return configProduction
+      return require('./config.prd.json')
   }
 }
 
