@@ -1,7 +1,11 @@
 const http = require('http')
 const https = require('https')
+const path = require('path')
 const { URL } = require('url')
 const HttpStatus = require('http-status-codes')
+const Koa = require('koa')
+const gzip = require('koa-compress')
+const serve = require('koa-static')
 const log4js = require('log4js')
 const configuration = require('./config')
 const { getErrorPage } = require('./utils')
@@ -15,16 +19,23 @@ if (config.environment === 'DEVELOPMENT') {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 }
 
+const app = new Koa()
+const publicPath = path.resolve(__dirname, './public')
+
+app.use(gzip())
+app.use(serve(publicPath))
+
 /**
- * Gets the port for a given hostname and, optionally, subdomain.
+ * Gets the port or folder for a given hostname.
  *
- * @param {string} hostname The hostname to get the port for (e.g. 'xyz.com', 'localhost',
+ * @param {string} hostname The hostname to get the port or folder for (e.g. 'xyz.com', 'localhost',
  * 'xyz.localhost')
- * @returns {(number|null)} the port as a number, or, if not found, null
+ * @returns {(number|string|null)} the port as a number, the folder as string, or, if not found,
+ * null
  */
-function getPortForHostName(hostname) {
+function getActionForHostName(hostname) {
   const siteName = Object.keys(config.hosts || {})
-    .find(h => hostname.includes(config.hosts[h].host))
+    .find(h => hostname === config.hosts[h].host)
   const matchedHost = config.hosts[siteName]
 
   if (!matchedHost) {
@@ -32,23 +43,16 @@ function getPortForHostName(hostname) {
     return null
   }
 
-  // The host is equal to the incoming hostname, meaning there's no subdomain.
-  if (matchedHost.host === hostname) {
-    logger.trace(`Direct match (no subdomain) found for specified host ${matchedHost.host} and incoming hostname ${hostname}.`)
+  if (matchedHost.port) {
+    logger.trace(`Port ${matchedHost.port} was found for specified host ${hostname}`)
     return matchedHost.port
+  } else if (matchedHost.folder) {
+    logger.trace(`Folder '${matchedHost.folder}' was found for specified host ${hostname}`)
+    return matchedHost.folder
   }
 
-  // The hostname only includes a part of the host, so there's a subdomain.
-  const subdomain = hostname.substring(0, hostname.indexOf('.'))
-  const subdomainPort = matchedHost.subdomains[subdomain]
-
-  if (!subdomainPort) {
-    logger.trace(`No entry found for subdomain ${subdomain} in ${siteName}.`)
-    return null
-  }
-
-  logger.trace(`Subdomain ${subdomain} found for specified host ${matchedHost.host}.`)
-  return subdomainPort
+  logger.warn(`No port or folder was specified in the configuration for ${siteName}.`)
+  return null
 }
 
 // Redirect from HTTP to HTTPS.
@@ -68,11 +72,17 @@ const httpServer = http.createServer((req, res) => {
 
 const httpsServer = https.createServer(configuration.getCertificate(), (req, res) => {
   const url = new URL(req.url, `https://${req.headers.host}`)
-  const port = getPortForHostName(url.hostname)
+  const action = getActionForHostName(url.hostname)
+  let port = null
+  let folder = null
 
-  if (!port) {
-    logger.debug(`Port was not found for hostname ${url.hostname}.`)
+  if (typeof action === 'number') {
+    port = action
+  } else if (typeof action === 'string') {
+    folder = action
+  }
 
+  if (!port && !folder) {
     const html = getErrorPage(HttpStatus.NOT_FOUND)
 
     res.writeHead(HttpStatus.NOT_FOUND, {
@@ -84,53 +94,57 @@ const httpsServer = https.createServer(configuration.getCertificate(), (req, res
     return
   }
 
-  logger.trace(`Following port was found for hostname ${url.hostname}: ${port}.`)
+  if (port) {
+    const options = {
+      protocol: 'http:', // url.protocol
+      hostname: 'localhost',
+      port,
+      method: req.method,
+      path: url.pathname,
+      headers: req.headers,
+    }
 
-  const options = {
-    protocol: 'http:', // url.protocol
-    // host: url.host,
-    hostname: 'localhost',
-    port,
-    method: req.method,
-    path: url.pathname,
-    headers: req.headers,
+    logger.trace('Options passed along to make a request to the origin server', options)
+
+    const clientReq = http.request(options, (serverRes) => {
+      res.writeHead(serverRes.statusCode, serverRes.statusMessage, serverRes.headers)
+      serverRes.pipe(res)
+    })
+
+    clientReq.on('error', (err) => {
+      if (err.errno === 'ECONNREFUSED') {
+        logger.error(`Could not connect to http://${url.hostname}:${port}.`)
+
+        const html = getErrorPage(HttpStatus.BAD_GATEWAY)
+
+        res.writeHead(HttpStatus.BAD_GATEWAY, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': Buffer.byteLength(html),
+        })
+        res.end(html)
+      } else if (err.errno === 'ETIMEDOUT') {
+        logger.error('Timeout: the origin server did not respond in time.')
+
+        const html = getErrorPage(HttpStatus.GATEWAY_TIMEOUT)
+
+        res.writeHead(HttpStatus.GATEWAY_TIMEOUT, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': Buffer.byteLength(html),
+        })
+        res.end(html)
+      } else {
+        logger.error(`An error occurred while connecting to the origin server: ${err}`)
+        res.end(err)
+      }
+    })
+
+    req.pipe(clientReq)
   }
 
-  logger.trace('Options passed along to make a request to the origin server', options)
-
-  const clientReq = http.request(options, (serverRes) => {
-    res.writeHead(serverRes.statusCode, serverRes.statusMessage, serverRes.headers)
-    serverRes.pipe(res)
-  })
-
-  clientReq.on('error', (err) => {
-    if (err.errno === 'ECONNREFUSED') {
-      logger.error(`Could not connect to http://${url.hostname}:${port}.`)
-
-      const html = getErrorPage(HttpStatus.BAD_GATEWAY)
-
-      res.writeHead(HttpStatus.BAD_GATEWAY, {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Length': Buffer.byteLength(html),
-      })
-      res.end(html)
-    } else if (err.errno === 'ETIMEDOUT') {
-      logger.error('Timeout: the origin server did not respond in time.')
-
-      const html = getErrorPage(HttpStatus.GATEWAY_TIMEOUT)
-
-      res.writeHead(HttpStatus.GATEWAY_TIMEOUT, {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Length': Buffer.byteLength(html),
-      })
-      res.end(html)
-    } else {
-      logger.error(`An error occurred while connecting to the origin server: ${err}`)
-      res.end(err)
-    }
-  })
-
-  req.pipe(clientReq)
+  if (folder) {
+    req.url = `${folder}/${req.url}`
+    app.callback()(req, res)
+  }
 })
 
 // Finally kick off both servers! 😎

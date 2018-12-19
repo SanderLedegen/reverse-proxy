@@ -2,15 +2,15 @@
 
 ## Description
 This project consists of a reverse proxy written in Node.js, containing some basic features like HTTPS
-support, auto-redirecting HTTP traffic, subdomain and error handling.
+support, auto-redirecting HTTP traffic, subdomains and error handling.
 
 ## Use case
 I started this project because I've got plentiful small projects laying around of which some I'd
 like to be accessible from the internet. As I've got just one domain name in my possession and since
 I'm not planning to get one for each of my little experiments, I figured a reverse proxy might come
-in handy. Especially because all these experiments run independently (as a separate process) on my Pi, each
-having a port dedicated to them. By checking the incoming requests and where they're exactly headed
-to, I can reach out to those underlying servers and pipe their response to the original request.
+in handy. By matching the hostnames of incoming requests to a configuration file, the reverse proxy
+knows whether the request should be forwarded to an underlying server while piping the response or if
+it should just return some static files.
 
 Why didn't I use [Nginx](https://nginx.org/) for this? Well, because I can. And because this way,
 you learn a lot more when fiddling in the network corner of the IT landscape 🤓
@@ -31,17 +31,17 @@ A typical configuration file may look like the following:
   "httpPort": 80,
   "httpsPort": 443,
   "hosts": {
-    "productA": {
-      "host": "product-a.xyz",
-      "port": 9000,
-      "subdomains": {
-        "webshop": 9001
-      }
+    "product": {
+      "host": "product.com",
+      "folder": "product"
+    },
+    "webshop": {
+      "host": "shop.product.com",
+      "port": 1337
     },
     "blog": {
-      "host": "bloglife.abc",
-      "port": 9100,
-      "subdomains": {}
+      "host": "my-memoires.org",
+      "folder": "blog"
     }
   }
 }
@@ -110,27 +110,27 @@ Further rules will only be applied to traffic destined for the HTTPS port.
 ### Hosts (rules)
 ```json
 "hosts": {
-  "productA": {
-    "host": "product-a.xyz",
-    "port": 9000,
-    "subdomains": {
-      "webshop": 9001
-    }
+  "product": {
+    "host": "product.com",
+    "folder": "product"
+  },
+  "webshop": {
+    "host": "shop.product.com",
+    "port": 1337
   },
   "blog": {
-    "host": "bloglife.abc",
-    "port": 9100,
-    "subdomains": {}
+    "host": "my-memoires.org",
+    "folder": "blog"
   }
 }
 ```
 
-This is the most important part of the configuration. In this example, two hosts, conveniently named
-`productA` and `blog` are specified. Whenever traffic for `product-a.xyz` is encountered, it will
-get its response from the server behind port `9000`. Unless the hostname also included a `webshop`
-subdomain, then the request would get its response from port `9001`. The `blog` hostname has an
-entirely different URL and no subdomains. Consequently, only hostnames that match `bloglife.abc`
-will be served.
+This is the most important part of the configuration. In this example, three hosts, conveniently
+named `product`, `webshop` and `blog` are specified. Whenever traffic for `product.com` is
+encountered, the reverse proxy will act as a web server and return files that are located in the
+`product` folder. If the hostname also included the `shop` subdomain, then the request would've got
+its response from the server behind port `1337`. The `blog` hostname has an entirely different URL
+and, consequently, only hostnames that match `my-memoires.org` will be served.
 
 In case of a 404 (i.e. when the host in the request is unknown to the reverse proxy), a 502 (i.e.
 when the underlying server is having problems) or a 504 (i.e. when the connection to the underlying
@@ -140,3 +140,4 @@ found under the `public` folder. Please note only HTTP 404, 502 and 504 errors a
 ## Planned features
 - HTTP/2 support, including push support.
 - WebSocket support
+- SNI support (a certificate per configured host)

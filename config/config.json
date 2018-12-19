@@ -10,17 +10,17 @@
   "httpPort": 80,
   "httpsPort": 443,
   "hosts": {
-    "productA": {
-      "host": "product-a.xyz",
-      "port": 9000,
-      "subdomains": {
-        "webshop": 9001
-      }
+    "product": {
+      "host": "product.com",
+      "folder": "product"
+    },
+    "webshop": {
+      "host": "shop.product.com",
+      "port": 1337
     },
     "blog": {
-      "host": "bloglife.abc",
-      "port": 9100,
-      "subdomains": {}
+      "host": "my-memoires.org",
+      "folder": "blog"
     }
   }
 }
