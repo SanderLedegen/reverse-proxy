@@ -2,6 +2,7 @@ const http = require('http')
 const https = require('https')
 const path = require('path')
 const { URL } = require('url')
+const constants = require('constants')
 const HttpStatus = require('http-status-codes')
 const Koa = require('koa')
 const gzip = require('koa-compress')
@@ -70,7 +71,12 @@ const httpServer = http.createServer((req, res) => {
   res.end()
 })
 
-const httpsServer = https.createServer(configuration.getCertificate(), (req, res) => {
+const httpsServerOptions = {
+  ...configuration.getCertificate(),
+  secureOptions: constants.SSL_OP_NO_TLSv1,
+}
+
+const httpsServer = https.createServer(httpsServerOptions, (req, res) => {
   const url = new URL(req.url, `https://${req.headers.host}`)
   const action = getActionForHostName(url.hostname)
   let port = null
