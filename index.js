@@ -47,7 +47,9 @@ function getActionForHostName(hostname) {
   if (matchedHost.port) {
     logger.trace(`Port ${matchedHost.port} was found for specified host ${hostname}`)
     return matchedHost.port
-  } else if (matchedHost.folder) {
+  }
+
+  if (matchedHost.folder) {
     logger.trace(`Folder '${matchedHost.folder}' was found for specified host ${hostname}`)
     return matchedHost.folder
   }

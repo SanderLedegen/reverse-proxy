@@ -6,7 +6,8 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "eslint": "node ./node_modules/.bin/eslint ."
   },
   "dependencies": {
     "http-status-codes": "^1.3.0",
@@ -16,8 +17,8 @@
     "log4js": "^3.0.5"
   },
   "devDependencies": {
-    "eslint": "^4.8.0",
-    "eslint-config-airbnb": "^16.0.0",
-    "eslint-plugin-import": "^2.7.0"
+    "eslint": "^5.13.0",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-plugin-import": "^2.16.0"
   }
 }
